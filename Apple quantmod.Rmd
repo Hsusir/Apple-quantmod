@@ -1,0 +1,78 @@
+---
+title: "Apple 到底有多賺錢?"
+author: "許sir"
+
+---
+
+### [.設定所需的函式庫(libraries)以及載入資料]
+```{r message=FALSE, warning=FALSE}
+library(quantmod)
+getSymbols("AAPL")
+#"getSymbols("AAPL")"是直接取用Yahoo Finance 裡蘋果(AAPL)股價的歷史資料。
+
+```
+
+### **[補充].你也可以抓台灣的資料，比如說:**
+```{r message=FALSE, warning=FALSE}
+library(quantmod)
+getSymbols("2330.TW")
+TSMC<-get("2330.TW")
+chartSeries(TSMC, theme="white")
+```
+
+
+### 1.股價基本資料與畫出線圖
+```{r message=FALSE, warning=FALSE}
+head(AAPL)
+tail(AAPL)
+#包含每天開盤價(AAPL.Open)、最高價(AAPL.High)、最低價(AAPL.Low)、收盤價(AAPL.Close)、成交量(AAPL.Volume)、(還原權值)AAPL.Adjusted。
+
+chartSeries(AAPL)
+chartSeries(AAPL["2012-01::2014-12"],theme="white") #我只要看此段區間的資料,同時把版面調成白色
+```
+
+### 2.畫出20日平均線(月線)，60日平均線(季線)
+```{r message=FALSE, warning=FALSE}
+#AAPL[,4]代表蘋果股價每日的收盤價(AAPL.Close)，因為收盤價放在第四行所以這樣表示。runMean這個函數以即n=20表示計算過去20天的平均數。因此。ma_20是一個時間序列，每一時間點表示過去20天的收盤平均。
+ma_20<-runMean(AAPL[,4],n=20)
+
+#過去60天的收盤平均
+ma_60<-runMean(AAPL[,4],n=60)
+
+#將20日均線(ma_20)的圖形，用藍色線條加到目前K線圖上
+addTA(ma_20,on=1,col="blue")
+
+#將60日均線(ma_60)的圖形，用紅色線條加到目前K線圖上
+addTA(ma_60,on=1,col="red")
+
+```
+
+### 3.進行策略回測
+```{r message=FALSE, warning=FALSE}
+#為了方便講解回測，我們用最普通的均線策略：當20ma大於60ma時，全壓買進；當20ma小於60ma時，空手。
+
+#position為一個時間序列，以日為單位，如果20ma大於60ma，設值為1；否則設值為0。由於我們是日資料，訊號發生時只能隔天做交易，故將這向量全部往後遞延一天。
+position<-Lag(ifelse(ma_20>ma_60, 1,0))
+
+#ROC計算：log(今天收盤價/昨天收盤價)，乘上poistion代表。若1則持有，若0則空手。
+return<-ROC(Cl(AAPL))*position
+
+#由於我們策略條件是60ma>20ma之後才會交易，故統計值從2007-03-20開始；另外APPLE在2004年有配發股利，故我們只統計2007年到2014年的資料
+return<-return['2007-03-30/2014-12-31']
+
+#cumsum計算累計值，即將每一分量之前的值累加起來。取exp函數是要計算累計損亦。(這裡運用國中數學:log(a)+log(b)=log(ab)，exp(log(ab))=ab)
+return<-exp(cumsum(return))
+
+#將累計損益圖畫出來。此策略的損益圖形如下，橫軸為時間軸，縱軸為報酬率，1代表原始自有資金100%。
+plot(return)
+
+```
+
+
+### 4 .布靈通道
+```{r message=FALSE, warning=FALSE}
+chartSeries(AAPL["2012-01::2015-04"],theme="white") #我只要看此段區間的資料
+addBBands()
+addBBands(draw="p")#另外加上Bollinger%b的圖形: Bollinger%b = (Close-LowerBound) / (UpperBound-LowerBound)
+```
+
